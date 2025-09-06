@@ -1,0 +1,13 @@
+# AWS SAM and Lambda dependencies
+boto3>=1.28.0
+aws-sam-cli>=1.100.0
+
+# Testing
+pytest>=7.0
+pytest-cov>=4.0
+
+# Optional: for mocking AWS services in tests
+moto>=5.3.0
+
+# Optional: HTTP requests
+requests>=2.31.0
