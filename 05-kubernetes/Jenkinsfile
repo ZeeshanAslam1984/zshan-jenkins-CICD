@@ -10,9 +10,11 @@ pipeline {
     }
 
     stages {
+
         stage('Setup') {
             steps {
-                sh '''
+                dir('05-kubernetes') {  // Make sure requirements.txt is here
+                    sh '''
 #!/bin/bash -e
 echo "Listing kubeconfig file"
 ls -la $KUBECONFIG
@@ -25,68 +27,87 @@ python3 -m venv venv
 pip install --upgrade pip
 pip install -r requirements.txt
 '''
+                }
             }
         }
 
         stage('Test') {
             steps {
-                sh "pytest"
+                dir('05-kubernetes') {
+                    sh '''
+. venv/bin/activate
+pytest
+'''
+                }
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'docker-creds', 
-                                     usernameVariable: 'USERNAME', 
-                                     passwordVariable: 'PASSWORD')
-                ]) {
+                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
                     sh 'echo ${PASSWORD} | docker login -u ${USERNAME} --password-stdin'
+                    echo 'Login successfully'
                 }
-                echo 'Login successfully'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t ${IMAGE_TAG} .'
-                echo "Docker image build successfully"
-                sh 'docker image ls'
+                dir('05-kubernetes') {
+                    sh '''
+docker build -t ${IMAGE_TAG} .
+echo "Docker image built successfully"
+docker image ls
+'''
+                }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh 'docker push ${IMAGE_TAG}'
-                echo "Docker image push successfully"
+                dir('05-kubernetes') {
+                    sh 'docker push ${IMAGE_TAG}'
+                    echo "Docker image pushed successfully"
+                }
             }
         }
 
         stage('Deploy to Staging') {
             steps {
-                sh 'kubectl config use-context user@staging.us-east-1.eksctl.io'
-                sh 'kubectl config current-context'
-                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
+                dir('05-kubernetes') {
+                    sh '''
+kubectl config use-context user@staging.us-east-1.eksctl.io
+kubectl config current-context
+kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}
+'''
+                }
             }
         }
 
         stage('Acceptance Test') {
             steps {
-                script {
-                    def service = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}'", returnStdout: true).trim()
-                    echo "${service}"
-                    sh "k6 run -e SERVICE=${service} acceptance-test.js"
+                dir('05-kubernetes') {
+                    sh '''
+SERVICE=$(kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}')
+echo "Service endpoint: $SERVICE"
+k6 run -e SERVICE=$SERVICE acceptance-test.js
+'''
                 }
             }
         }
 
         stage('Deploy to Prod') {
             steps {
-                sh 'kubectl config use-context user@prod.us-east-1.eksctl.io'
-                sh 'kubectl config current-context'
-                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
+                dir('05-kubernetes') {
+                    sh '''
+kubectl config use-context user@prod.us-east-1.eksctl.io
+kubectl config current-context
+kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}
+'''
+                }
             }
         }
+
     }
 
     post {
