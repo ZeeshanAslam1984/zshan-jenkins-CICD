@@ -3,7 +3,6 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
-        IMAGE_TAG = "${IMAGE_NAME}:${env.GIT_COMMIT}"
         AWS_ACCESS_KEY_ID = credentials('aws-access-key')     // Your AWS credentials in Jenkins
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
     }
@@ -12,40 +11,50 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                    echo "Building Docker image..."
-                    docker build -t $IMAGE_TAG .
-                '''
+                dir('05-kubernetes') {   // Make sure to build in the folder with Dockerfile
+                    script {
+                        GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                        IMAGE_TAG = "${IMAGE_NAME}:${GIT_COMMIT_SHORT}"
+                        echo "Building Docker image $IMAGE_TAG..."
+                        sh "docker build -t $IMAGE_TAG ."
+                    }
+                }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh '''
-                    echo "Logging into Docker Hub..."
-                    echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin
-                    echo "Pushing Docker image..."
-                    docker push $IMAGE_TAG
-                '''
+                withCredentials([
+                    usernamePassword(credentialsId: 'docker-hub-creds', 
+                                     usernameVariable: 'DOCKER_HUB_USERNAME', 
+                                     passwordVariable: 'DOCKER_HUB_PASSWORD')
+                ]) {
+                    dir('05-kubernetes') {
+                        echo "Logging into Docker Hub..."
+                        sh 'echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin'
+                        echo "Pushing Docker image $IMAGE_TAG..."
+                        sh "docker push $IMAGE_TAG"
+                    }
+                }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                // Use Jenkins secret file for kubeconfig
                 withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                    sh '''
+                    dir('05-kubernetes') {
                         echo "Using kubeconfig at $KUBECONFIG"
+                        sh '''
+                            # Test access to cluster
+                            kubectl get nodes
 
-                        # Test access to cluster
-                        kubectl get nodes
+                            # Deploy your application
+                            kubectl apply -f k8s-deployment.yaml
 
-                        # Deploy your application
-                        kubectl apply -f k8s-deployment.yaml
-
-                        # Optional: check pods
-                        kubectl get pods
-                    '''
+                            # Optional: check pods
+                            kubectl get pods
+                        '''
+                    }
                 }
             }
         }
