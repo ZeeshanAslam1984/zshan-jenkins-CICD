@@ -11,12 +11,10 @@ pipeline {
     stages {
         stage('Setup Kubeconfig') {
             steps {
-                withCredentials([string(credentialsId: 'kubeconfig-content', variable: 'KUBECONFIG_CONTENT')]) {
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
                     sh '''
-                        mkdir -p /var/lib/jenkins/.kube
-                        echo "$KUBECONFIG_CONTENT" > /var/lib/jenkins/.kube/config
-                        chown -R jenkins:jenkins /var/lib/jenkins/.kube
-                        chmod 600 /var/lib/jenkins/.kube/config
+                        echo "Using kubeconfig at $KUBECONFIG"
+                        kubectl get nodes
                     '''
                 }
             }
@@ -25,8 +23,7 @@ pipeline {
         stage('Deploy Example') {
             steps {
                 sh '''
-                    export KUBECONFIG=/var/lib/jenkins/.kube/config
-                    kubectl get nodes
+                    kubectl apply -f k8s-deployment.yaml
                 '''
             }
         }
