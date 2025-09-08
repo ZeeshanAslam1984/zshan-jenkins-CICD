@@ -4,46 +4,62 @@ pipeline {
     environment {
         IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
         IMAGE_TAG = "${IMAGE_NAME}:${env.GIT_COMMIT}"
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key')
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key')     // Your AWS credentials in Jenkins
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
     }
 
     stages {
-        stage('Setup Kubeconfig') {
+
+        stage('Build Docker Image') {
             steps {
-                // Use Jenkins Secret File for kubeconfig
-                withCredentials([file(credentialsId: 'kubeconfig-content', variable: 'KUBECONFIG_TMP')]) {
+                sh '''
+                    echo "Building Docker image..."
+                    docker build -t $IMAGE_TAG .
+                '''
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                sh '''
+                    echo "Logging into Docker Hub..."
+                    echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin
+                    echo "Pushing Docker image..."
+                    docker push $IMAGE_TAG
+                '''
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                // Use Jenkins secret file for kubeconfig
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
                     sh '''
-                        # Create kube directory for Jenkins
-                        mkdir -p /var/lib/jenkins/.kube
+                        echo "Using kubeconfig at $KUBECONFIG"
 
-                        # Copy the secret kubeconfig to Jenkins kube folder
-                        cp $KUBECONFIG_TMP /var/lib/jenkins/.kube/config
-
-                        # Set ownership and permissions
-                        chown -R jenkins:jenkins /var/lib/jenkins/.kube
-                        chmod 600 /var/lib/jenkins/.kube/config
-
-                        # Export KUBECONFIG for this shell session
-                        export KUBECONFIG=/var/lib/jenkins/.kube/config
-
-                        # Test kubectl access
+                        # Test access to cluster
                         kubectl get nodes
+
+                        # Deploy your application
+                        kubectl apply -f k8s-deployment.yaml
+
+                        # Optional: check pods
+                        kubectl get pods
                     '''
                 }
             }
         }
+    }
 
-        stage('Deploy Example') {
-            steps {
-                sh '''
-                    # Export KUBECONFIG so kubectl knows which config to use
-                    export KUBECONFIG=/var/lib/jenkins/.kube/config
-
-                    # Deploy your application (example)
-                    kubectl apply -f k8s-deployment.yaml
-                '''
-            }
+    post {
+        always {
+            echo "Pipeline finished."
+        }
+        success {
+            echo "Deployment succeeded!"
+        }
+        failure {
+            echo "Deployment failed!"
         }
     }
 }
