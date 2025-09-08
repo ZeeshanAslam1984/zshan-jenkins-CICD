@@ -2,81 +2,89 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key')      // Your AWS credentials in Jenkins
+        IMAGE_NAME = 'zeeshanaslam1984/jenkins-flask-app'
+        IMAGE_TAG = "${IMAGE_NAME}:${env.GIT_COMMIT}"
+        KUBECONFIG = credentials('kubeconfig-credentials-id')
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key')
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        
     }
 
+    
     stages {
-
-        stage('Build Docker Image') {
+        stage('Setup') {
             steps {
-                dir('04-docker') {   // Folder containing Dockerfile
-                    script {
-                        GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                        IMAGE_TAG = "${IMAGE_NAME}:${GIT_COMMIT_SHORT}"
-                        echo "Building Docker image $IMAGE_TAG..."
-                        sh "docker build -t $IMAGE_TAG ."
-                    }
+                sh 'ls -la $KUBECONFIG'
+                sh 'chmod 644 $KUBECONFIG'
+                sh 'ls -la $KUBECONFIG'
+                sh "pip install -r requirements.txt"
+            }
+        }
+        stage('Test') {
+            steps {
+                sh "pytest"
+            }
+        }
+
+        stage('Login to docker hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                sh 'echo ${PASSWORD} | docker login -u ${USERNAME} --password-stdin'}
+                echo 'Login successfully'
+            }
+        }
+
+        stage('Build Docker Image')
+        {
+            steps
+            {
+                sh 'docker build -t ${IMAGE_TAG} .'
+                echo "Docker image build successfully"
+                sh 'docker image ls'
+                
+            }
+        }
+
+        stage('Push Docker Image')
+        {
+            steps
+            {
+                sh 'docker push ${IMAGE_TAG}'
+                echo "Docker image push successfully"
+            }
+        }
+
+        stage('Deploy to Staging')
+        {
+            steps {
+                sh 'kubectl config use-context user@staging.us-east-1.eksctl.io'
+                sh 'kubectl config current-context'
+                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
+            }
+        }
+
+        stage('Acceptance Test')
+        {
+            steps {
+
+                script {
+
+                    def service = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}'", returnStdout: true).trim()
+                    echo "${service}"
+
+                    sh "k6 run -e SERVICE=${service} acceptance-test.js"
                 }
             }
         }
-
-        stage('Push Docker Image') {
+        stage('Deploy to Prod')
+        {
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: 'docker-creds', 
-                                     usernameVariable: 'DOCKER_HUB_USERNAME', 
-                                     passwordVariable: 'DOCKER_HUB_PASSWORD')
-                ]) {
-                    dir('04-docker') {
-                        echo "Logging into Docker Hub..."
-                        sh 'echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin'
-                        echo "Pushing Docker image $IMAGE_TAG..."
-                        sh "docker push $IMAGE_TAG"
-                    }
-                }
+                sh 'kubectl config use-context user@prod.us-east-1.eksctl.io'
+                sh 'kubectl config current-context'
+                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
             }
-        }
+        }       
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                withCredentials([string(credentialsId: 'k8s-token', variable: 'K8S_TOKEN')]) {
-                    dir('04-docker') {
-                        script {
-                            sh '''
-                            # Configure kubectl to use service account token
-                            kubectl config set-cluster minikube --server=https://$(minikube ip):8443 --insecure-skip-tls-verify=true
-                            kubectl config set-credentials jenkins-sa --token=$K8S_TOKEN
-                            kubectl config set-context jenkins-context --cluster=minikube --user=jenkins-sa
-                            kubectl config use-context jenkins-context
-
-                            # Test cluster access
-                            kubectl get nodes
-
-                            # Deploy application
-                            kubectl apply -f k8s-deployment.yaml
-
-                            # Check pods
-                            kubectl get pods
-                            '''
-                        } // closes script
-                    } // closes dir
-                } // closes withCredentials
-            }
-        }
-
-    } // closes stages
-
-    post {
-        always {
-            echo "Pipeline finished."
-        }
-        success {
-            echo "Deployment succeeded!"
-        }
-        failure {
-            echo "Deployment failed!"
-        }
+        
     }
-} // closes pipeline
+}
