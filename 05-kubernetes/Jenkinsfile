@@ -12,7 +12,7 @@ pipeline {
         stage('Setup Kubeconfig') {
             steps {
                 // Use Jenkins Secret File for kubeconfig
-                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_TMP')]) {
+                withCredentials([file(credentialsId: 'kubeconfig-content', variable: 'KUBECONFIG_TMP')]) {
                     sh '''
                         # Create kube directory for Jenkins
                         mkdir -p /var/lib/jenkins/.kube
