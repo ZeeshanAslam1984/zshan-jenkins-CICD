@@ -3,22 +3,18 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
-        IMAGE_TAG  = "${IMAGE_NAME}:${env.GIT_COMMIT}"
-        VENV_DIR   = "${WORKSPACE}/venv"
+        IMAGE_TAG  = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
+        VENV_DIR   = "j-venv"
     }
 
     stages {
-        stage('Setup & Install Dependencies') {
+        stage('Setup Python Env') {
             steps {
                 sh '''
-                    echo "Creating virtual environment..."
-                    python3 -m venv $VENV_DIR
-
-                    echo "Upgrading pip, setuptools, wheel..."
-                    $VENV_DIR/bin/pip install --upgrade pip setuptools wheel
-
-                    echo "Installing dependencies from 04-docker/requirements.txt..."
-                    $VENV_DIR/bin/pip install --break-system-packages -r 04-docker/requirements.txt
+                    python3 -m venv ${VENV_DIR}
+                    . ${VENV_DIR}/bin/activate
+                    pip install --upgrade pip
+                    pip install -r 04-docker/requirements.txt
                 '''
             }
         }
@@ -26,18 +22,23 @@ pipeline {
         stage('Run Tests') {
             steps {
                 sh '''
-                    echo "Running tests (if any)..."
-                    $VENV_DIR/bin/pytest || echo "No tests found, skipping."
+                    . ${VENV_DIR}/bin/activate
+                    echo "Running tests in 04-docker only..."
+                    pytest 04-docker || echo "No tests found in 04-docker, skipping."
                 '''
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                sh '''
-                    echo "Logging into Docker Hub..."
-                    echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin
-                '''
+                withCredentials([usernamePassword(credentialsId: 'docker-hub',
+                                                 usernameVariable: 'DOCKER_USERNAME',
+                                                 passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        echo "Logging into Docker Hub..."
+                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                    '''
+                }
             }
         }
 
@@ -49,13 +50,6 @@ pipeline {
                     docker push ${IMAGE_TAG}
                 '''
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Cleaning up virtual environment..."
-            sh 'rm -rf $VENV_DIR'
         }
     }
 }
