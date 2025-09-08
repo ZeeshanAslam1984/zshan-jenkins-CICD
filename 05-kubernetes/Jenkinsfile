@@ -21,7 +21,7 @@ ls -la $KUBECONFIG
 
 echo "Setting up Python virtual environment"
 python3 -m venv venv
-source venv/bin/activate
+. venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 '''
@@ -30,77 +30,61 @@ pip install -r requirements.txt
 
         stage('Test') {
             steps {
-                sh '''
-#!/bin/bash -e
-source venv/bin/activate
-pytest
-'''
+                sh "pytest"
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                    sh '''
-#!/bin/bash -e
-echo $PASSWORD | docker login -u $USERNAME --password-stdin
-'''
-                    echo 'Login successful'
+                withCredentials([
+                    usernamePassword(credentialsId: 'docker-creds', 
+                                     usernameVariable: 'USERNAME', 
+                                     passwordVariable: 'PASSWORD')
+                ]) {
+                    sh 'echo ${PASSWORD} | docker login -u ${USERNAME} --password-stdin'
                 }
+                echo 'Login successfully'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-#!/bin/bash -e
-docker build -t $IMAGE_TAG .
-docker image ls
-'''
-                echo "Docker image built successfully"
+                sh 'docker build -t ${IMAGE_TAG} .'
+                echo "Docker image build successfully"
+                sh 'docker image ls'
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh '''
-#!/bin/bash -e
-docker push $IMAGE_TAG
-'''
-                echo "Docker image pushed successfully"
+                sh 'docker push ${IMAGE_TAG}'
+                echo "Docker image push successfully"
             }
         }
 
         stage('Deploy to Staging') {
             steps {
-                sh '''
-#!/bin/bash -e
-kubectl config use-context user@staging.us-east-1.eksctl.io
-kubectl config current-context
-kubectl set image deployment/flask-app flask-app=$IMAGE_TAG
-'''
+                sh 'kubectl config use-context user@staging.us-east-1.eksctl.io'
+                sh 'kubectl config current-context'
+                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
             }
         }
 
         stage('Acceptance Test') {
             steps {
-                sh '''
-#!/bin/bash -e
-SERVICE=$(kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}')
-echo $SERVICE
-k6 run -e SERVICE=$SERVICE acceptance-test.js
-'''
+                script {
+                    def service = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}'", returnStdout: true).trim()
+                    echo "${service}"
+                    sh "k6 run -e SERVICE=${service} acceptance-test.js"
+                }
             }
         }
 
         stage('Deploy to Prod') {
             steps {
-                sh '''
-#!/bin/bash -e
-kubectl config use-context user@prod.us-east-1.eksctl.io
-kubectl config current-context
-kubectl set image deployment/flask-app flask-app=$IMAGE_TAG
-'''
+                sh 'kubectl config use-context user@prod.us-east-1.eksctl.io'
+                sh 'kubectl config current-context'
+                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
             }
         }
     }
