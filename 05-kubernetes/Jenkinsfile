@@ -11,9 +11,23 @@ pipeline {
     stages {
         stage('Setup Kubeconfig') {
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig-content', variable: 'KUBECONFIG')]) {
+                // Use Jenkins Secret File for kubeconfig
+                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG_TMP')]) {
                     sh '''
-                        echo "Using kubeconfig at $KUBECONFIG"
+                        # Create kube directory for Jenkins
+                        mkdir -p /var/lib/jenkins/.kube
+
+                        # Copy the secret kubeconfig to Jenkins kube folder
+                        cp $KUBECONFIG_TMP /var/lib/jenkins/.kube/config
+
+                        # Set ownership and permissions
+                        chown -R jenkins:jenkins /var/lib/jenkins/.kube
+                        chmod 600 /var/lib/jenkins/.kube/config
+
+                        # Export KUBECONFIG for this shell session
+                        export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+                        # Test kubectl access
                         kubectl get nodes
                     '''
                 }
@@ -23,6 +37,10 @@ pipeline {
         stage('Deploy Example') {
             steps {
                 sh '''
+                    # Export KUBECONFIG so kubectl knows which config to use
+                    export KUBECONFIG=/var/lib/jenkins/.kube/config
+
+                    # Deploy your application (example)
                     kubectl apply -f k8s-deployment.yaml
                 '''
             }
