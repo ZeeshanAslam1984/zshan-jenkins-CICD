@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key')     // Your AWS credentials in Jenkins
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key')      // AWS credentials in Jenkins
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
     }
 
@@ -11,7 +11,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                dir('05-kubernetes') {   // Build in the folder containing Dockerfile
+                dir('04-docker') {   // Folder containing Dockerfile
                     script {
                         GIT_COMMIT_SHORT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
                         IMAGE_TAG = "${IMAGE_NAME}:${GIT_COMMIT_SHORT}"
@@ -29,7 +29,7 @@ pipeline {
                                      usernameVariable: 'DOCKER_HUB_USERNAME', 
                                      passwordVariable: 'DOCKER_HUB_PASSWORD')
                 ]) {
-                    dir('05-kubernetes') {
+                    dir('04-docker') {
                         echo "Logging into Docker Hub..."
                         sh 'echo $DOCKER_HUB_PASSWORD | docker login -u $DOCKER_HUB_USERNAME --password-stdin'
                         echo "Pushing Docker image $IMAGE_TAG..."
@@ -41,19 +41,25 @@ pipeline {
 
         stage('Deploy to Kubernetes') {
             steps {
-                withCredentials([file(credentialsId: 'kubeconfig-file', variable: 'KUBECONFIG')]) {
-                    dir('05-kubernetes') {
-                        echo "Using kubeconfig at $KUBECONFIG"
-                        sh '''
-                            # Test access to cluster
+                withCredentials([string(credentialsId: 'k8s-token', variable: 'K8S_TOKEN')]) {
+                    dir('04-docker') {
+                        script {
+                            sh '''
+                            # Configure kubectl to use service account token
+                            kubectl config set-cluster minikube --server=https://$(minikube ip):8443 --insecure-skip-tls-verify=true
+                            kubectl config set-credentials jenkins-sa --token=$K8S_TOKEN
+                            kubectl config set-context jenkins-context --cluster=minikube --user=jenkins-sa
+                            kubectl config use-context jenkins-context
+
+                            # Test cluster access
                             kubectl get nodes
 
-                            # Deploy your application
+                            # Deploy application
                             kubectl apply -f k8s-deployment.yaml
 
-                            # Optional: check pods
+                            # Check pods
                             kubectl get pods
-                        '''
+                            '''
                     }
                 }
             }
