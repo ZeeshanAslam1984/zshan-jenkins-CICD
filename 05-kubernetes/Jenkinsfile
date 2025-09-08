@@ -20,6 +20,8 @@ pipeline {
         stage('Setup') {
             steps {
                 sh '''
+                    #!/bin/bash -e
+
                     # Make kubeconfig readable
                     ls -la $KUBECONFIG
                     chmod 644 $KUBECONFIG
@@ -28,6 +30,8 @@ pipeline {
                     # Setup Python virtual environment
                     python3 -m venv venv
                     source venv/bin/activate
+
+                    # Upgrade pip and install requirements
                     pip install --upgrade pip
                     pip install -r requirements.txt
                 '''
@@ -37,6 +41,7 @@ pipeline {
         stage('Test') {
             steps {
                 sh '''
+                    #!/bin/bash -e
                     source venv/bin/activate
                     pytest
                 '''
@@ -46,30 +51,40 @@ pipeline {
         stage('Login to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                    sh 'echo $PASSWORD | docker login -u $USERNAME --password-stdin'
-                    echo 'Docker login successful'
+                    sh '''
+                        #!/bin/bash -e
+                        echo $PASSWORD | docker login -u $USERNAME --password-stdin
+                        echo 'Docker login successful'
+                    '''
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${IMAGE_TAG} ."
-                echo "Docker image built successfully"
-                sh "docker image ls"
+                sh '''
+                    #!/bin/bash -e
+                    docker build -t ${IMAGE_TAG} .
+                    echo "Docker image built successfully"
+                    docker image ls
+                '''
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh "docker push ${IMAGE_TAG}"
-                echo "Docker image pushed successfully"
+                sh '''
+                    #!/bin/bash -e
+                    docker push ${IMAGE_TAG}
+                    echo "Docker image pushed successfully"
+                '''
             }
         }
 
         stage('Deploy to Staging') {
             steps {
                 sh '''
+                    #!/bin/bash -e
                     export KUBECONFIG=$KUBECONFIG
                     kubectl config use-context user@staging.us-east-1.eksctl.io
                     kubectl config current-context
@@ -81,6 +96,7 @@ pipeline {
         stage('Acceptance Test') {
             steps {
                 sh '''
+                    #!/bin/bash -e
                     export KUBECONFIG=$KUBECONFIG
                     source venv/bin/activate
                     SERVICE=$(kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}')
@@ -93,6 +109,7 @@ pipeline {
         stage('Deploy to Prod') {
             steps {
                 sh '''
+                    #!/bin/bash -e
                     export KUBECONFIG=$KUBECONFIG
                     kubectl config use-context user@prod.us-east-1.eksctl.io
                     kubectl config current-context
