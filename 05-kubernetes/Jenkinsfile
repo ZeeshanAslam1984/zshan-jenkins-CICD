@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key')      // AWS credentials in Jenkins
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key')      // Your AWS credentials in Jenkins
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
     }
 
@@ -60,11 +60,13 @@ pipeline {
                             # Check pods
                             kubectl get pods
                             '''
-                    }
-                }
+                        } // closes script
+                    } // closes dir
+                } // closes withCredentials
             }
         }
-    }
+
+    } // closes stages
 
     post {
         always {
@@ -77,4 +79,4 @@ pipeline {
             echo "Deployment failed!"
         }
     }
-}
+} // closes pipeline
