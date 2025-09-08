@@ -2,19 +2,20 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'zeeshanaslam1984/zshan-jenkins-docker-flask-app'
-        IMAGE_TAG  = "${IMAGE_NAME}:${env.BUILD_NUMBER}"
-        VENV_DIR   = "j-venv"
+        APP_DIR = "04-docker"
+        VENV_DIR = "j-venv"
+        IMAGE_NAME = "zeeshanaslam1984/zshan-jenkins-docker-flask-app"
     }
 
     stages {
-        stage('Setup Python Env') {
+        stage('Setup & Install') {
             steps {
                 sh '''
+                    echo "📦 Setting up virtual environment..."
                     python3 -m venv ${VENV_DIR}
                     . ${VENV_DIR}/bin/activate
                     pip install --upgrade pip
-                    pip install -r 04-docker/requirements.txt
+                    pip install -r ${APP_DIR}/requirements.txt
                 '''
             }
         }
@@ -23,21 +24,23 @@ pipeline {
             steps {
                 sh '''
                     . ${VENV_DIR}/bin/activate
-                    echo "Running tests in 04-docker only..."
-                    pytest 04-docker || echo "No tests found in 04-docker, skipping."
+                    echo "Running tests in ${APP_DIR} only..."
+                    pytest ${APP_DIR}
                 '''
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub',
-                                                 usernameVariable: 'DOCKER_USERNAME',
-                                                 passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh '''
-                        echo "Logging into Docker Hub..."
-                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                    '''
+                script {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-creds',
+                        usernameVariable: 'USERNAME',
+                        passwordVariable: 'PASSWORD'
+                    )]) {
+                        sh 'echo "${PASSWORD}" | docker login -u "${USERNAME}" --password-stdin'
+                        echo '✅ Login successful'
+                    }
                 }
             }
         }
@@ -45,11 +48,20 @@ pipeline {
         stage('Build & Push Docker Image') {
             steps {
                 sh '''
-                    echo "Building Docker image: ${IMAGE_TAG}"
-                    docker build -t ${IMAGE_TAG} 04-docker
-                    docker push ${IMAGE_TAG}
+                    echo "🐳 Building Docker image..."
+                    docker build -t ${IMAGE_NAME}:latest ${APP_DIR}
+
+                    echo "📤 Pushing Docker image..."
+                    docker push ${IMAGE_NAME}:latest
                 '''
             }
+        }
+    }
+
+    post {
+        always {
+            echo '🧹 Cleaning up virtual environment...'
+            sh 'rm -rf ${VENV_DIR}'
         }
     }
 }
