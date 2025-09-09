@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/var/lib/jenkins/.local/bin:$PATH"
+        // Add Poetry path so Jenkins can find it
+        PATH = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:$PATH"
     }
 
     stages {
