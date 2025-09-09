@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/var/lib/jenkins/.local/bin:${env.PATH}"
+        // Keep this in case other tools rely on PATH
+        PATH = "/var/lib/jenkins/.local/bin:$PATH"
     }
 
     stages {
@@ -15,7 +16,8 @@ pipeline {
         stage('Setup') {
             steps {
                 dir('06-advanced-project') {
-                    sh 'poetry install --with dev'
+                    // Use a login shell to load Poetry from ~/.local/bin
+                    sh 'bash -l -c "poetry install --with dev"'
                 }
             }
         }
@@ -23,7 +25,7 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    sh 'poetry run pytest'
+                    sh 'bash -l -c "poetry run pytest"'
                 }
             }
         }
