@@ -1,13 +1,12 @@
 pipeline {
     agent any
     environment {
-        // Add Poetry's bin directory to PATH safely
         PATH+EXTRA = "/var/lib/jenkins/.local/bin"
     }
     stages {
         stage('Setup') {
             steps {
-                dir('06-advanced-project') {
+                dir('06-advanced-project') {    // <- change directory here
                     sh 'poetry install --with dev'
                 }
             }
@@ -15,7 +14,7 @@ pipeline {
 
         stage('Test') {
             steps {
-                dir('06-advanced-project') {
+                dir('06-advanced-project') {    // <- change directory here
                     sh 'poetry run pytest'
                 }
             }
