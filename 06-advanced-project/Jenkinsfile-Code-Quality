@@ -1,10 +1,6 @@
 pipeline {
     agent any
 
-    environment {
-        PATH = "/var/lib/jenkins/.local/bin:$PATH" // ensure Poetry is on PATH
-    }
-
     stages {
         stage('Checkout') {
             steps {
@@ -13,21 +9,21 @@ pipeline {
         }
 
         stage('Setup') {
-    steps {
-        dir('06-advanced-project') {
-            sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
+            steps {
+                dir('06-advanced-project') {
+                    // Use full path explicitly
+                    sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
+                }
+            }
         }
-    }
-}
 
-And for the Test stage:
-
-stage('Test') {
-    steps {
-        dir('06-advanced-project') {
-            sh '/var/lib/jenkins/.local/bin/poetry run pytest'
+        stage('Test') {
+            steps {
+                dir('06-advanced-project') {
+                    // Use full path explicitly for pytest
+                    sh '/var/lib/jenkins/.local/bin/poetry run pytest'
+                }
+            }
         }
-    }
-}
     }
 }
