@@ -2,26 +2,23 @@ pipeline {
     agent any
 
     environment {
-        // Ensure Poetry is in PATH for Jenkins
-        PATH = "/var/lib/jenkins/.local/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
+        // Use PATH+EXTRA to avoid JENKINS-41339 warnings
+        PATH+POETRY = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:${env.PATH}"
     }
 
     stages {
-
-        stage('Prepare Workspace') {
+        stage('Checkout') {
             steps {
-                script {
-                    // Fix permissions for Jenkins to write pytest cache
-                    sh 'sudo chown -R jenkins:jenkins ${WORKSPACE}/06-advanced-project'
-                }
+                // Ensure correct Git checkout
+                checkout scm
             }
         }
 
         stage('Setup') {
             steps {
+                // Go into the folder containing pyproject.toml
                 dir('06-advanced-project') {
-                    // Install dependencies via Poetry
-                    sh '/usr/bin/env poetry install --with dev'
+                    sh 'poetry install --with dev'
                 }
             }
         }
@@ -29,19 +26,9 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    // Run tests
-                    sh '/usr/bin/env poetry run pytest'
+                    sh 'poetry run pytest'
                 }
             }
-        }
-    }
-
-    post {
-        success {
-            echo "✅ Build & tests completed successfully!"
-        }
-        failure {
-            echo "❌ Build failed. Check console output."
         }
     }
 }
