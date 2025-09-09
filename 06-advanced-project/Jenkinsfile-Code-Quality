@@ -1,7 +1,7 @@
 pipeline {
     agent any
     environment {
-        PATH = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:${env.PATH}"
+        PATH+POETRY = "/var/lib/jenkins/.local/share/pypoetry/venv/bin"
     }
     stages {
         stage('Setup') {
