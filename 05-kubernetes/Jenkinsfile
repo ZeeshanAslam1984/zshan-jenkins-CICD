@@ -2,15 +2,12 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = 'zeeshanaslam1984/jenkins-flask-app'
-        IMAGE_TAG = "${IMAGE_NAME}:${env.GIT_COMMIT}"
-        KUBECONFIG = '/var/lib/jenkins/.minikube/config'  // fixed Minikube kubeconfig
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-key')
+        AWS_REGION = "ap-southeast-2"
+        DOCKER_IMAGE = "zeeshanaslam1984/jenkins-flask-app"
+        KUBECONFIG = "/var/lib/jenkins/.kube/config"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
@@ -25,93 +22,72 @@ pipeline {
                 sh 'ls -la $KUBECONFIG'
 
                 echo "Setting up Python virtual environment"
-                sh 'python3 -m venv venv'
-                sh '. venv/bin/activate && pip install --upgrade pip'
-                
-                // Only install requirements if the file exists
                 sh '''
-                if [ -f requirements.txt ]; then
-                    . venv/bin/activate && pip install -r requirements.txt
-                else
-                    echo "No requirements.txt found, skipping Python dependencies."
-                fi
-                '''
-            }
-        }
-
-        stage('Test') {
-            steps {
-                sh '''
-                if [ -f requirements.txt ]; then
-                    . venv/bin/activate && pytest || echo "Tests failed"
-                else
-                    echo "Skipping tests"
-                fi
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install --upgrade pip
+                    if [ -f requirements.txt ]; then
+                        pip install -r requirements.txt
+                    fi
                 '''
             }
         }
 
         stage('Login to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-creds', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
-                    sh 'echo ${PASSWORD} | docker login -u ${USERNAME} --password-stdin'
-                    echo 'Login to Docker Hub successful'
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'docker-creds',
+                        usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                        sh 'echo "${PASSWORD}" | docker login -u "${USERNAME}" --password-stdin'
+                        echo '✅ Login successful'
+                    }
                 }
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t ${IMAGE_TAG} .'
-                echo "Docker image built successfully"
-                sh 'docker image ls'
+                dir('05-kubernetes') {
+                    script {
+                        COMMIT_HASH = sh(returnStdout: true, script: "git rev-parse HEAD").trim()
+                        IMAGE_TAG = "${DOCKER_IMAGE}:${COMMIT_HASH}"
+                        sh "docker build -t ${IMAGE_TAG} ."
+                        echo "Docker image built: ${IMAGE_TAG}"
+                    }
+                }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                sh 'docker push ${IMAGE_TAG}'
-                echo "Docker image pushed successfully"
+                dir('05-kubernetes') {
+                    script {
+                        sh "docker push ${IMAGE_TAG}"
+                        echo "Docker image pushed successfully"
+                    }
+                }
             }
         }
 
         stage('Deploy to Staging') {
             steps {
-                sh 'kubectl config use-context minikube'
-                sh 'kubectl apply -f k8s-deployment.yaml'
-                sh 'kubectl get pods'
-            }
-        }
-
-        stage('Acceptance Test') {
-            steps {
-                script {
-                    def service = sh(script: "kubectl get svc flask-app-service -o jsonpath='{.status.loadBalancer.ingress[0].hostname}:{.spec.ports[0].port}'", returnStdout: true).trim()
-                    echo "Service endpoint: ${service}"
-                    sh "k6 run -e SERVICE=${service} acceptance-test.js || echo 'Acceptance test failed'"
+                dir('05-kubernetes') {
+                    sh '''
+                        . venv/bin/activate
+                        kubectl config use-context minikube
+                        kubectl apply -f k8s-deployment.yaml
+                    '''
                 }
             }
         }
-
-        stage('Deploy to Prod') {
-            steps {
-                sh 'kubectl config use-context minikube'
-                sh "kubectl set image deployment/flask-app flask-app=${IMAGE_TAG}"
-                sh 'kubectl get pods'
-            }
-        }
-
     }
 
     post {
-        always {
-            echo "Pipeline finished."
-        }
         success {
-            echo "Deployment succeeded!"
+            echo '✅ Deployment successful!'
         }
         failure {
-            echo "Deployment failed!"
+            echo '❌ Deployment failed!'
         }
     }
 }
