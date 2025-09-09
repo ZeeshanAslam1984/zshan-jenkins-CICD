@@ -1,18 +1,13 @@
 pipeline {
     agent any
-
+    environment {
+        PATH = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:${env.PATH}"
+    }
     stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Setup') {
             steps {
                 dir('06-advanced-project') {
-                    // Use full path to Poetry
-                    sh '/var/lib/jenkins/.local/share/pypoetry/venv/bin/poetry install --with dev'
+                    sh 'poetry install --with dev'
                 }
             }
         }
@@ -20,8 +15,7 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    // Run tests with Poetry
-                    sh '/var/lib/jenkins/.local/share/pypoetry/venv/bin/poetry run pytest'
+                    sh 'poetry run pytest'
                 }
             }
         }
