@@ -20,7 +20,7 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    // Use full path again for pytest
+                    // Run tests with Poetry
                     sh '/var/lib/jenkins/.local/share/pypoetry/venv/bin/poetry run pytest'
                 }
             }
