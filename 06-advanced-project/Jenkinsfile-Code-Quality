@@ -1,41 +1,28 @@
 pipeline {
     agent any
+
+    environment {
+        // Add Poetry to PATH so Jenkins can find it
+        PATH = "/var/lib/jenkins/.local/bin:${env.PATH}"
+    }
+
     stages {
-        stage('environment variables') {
+        stage('Environment Variables') {
             steps {
                 sh 'printenv'
                 sh 'ls -la'
             }
         }
 
-        stage('Pull Request Number') {
-            when {
-                changeRequest target: 'main'
-            }
-            steps {
-                echo "PR: ${CHANGE_ID}"
-            }
-        }
-
         stage('Setup') {
             steps {
-                dir('06-advanced-project') {
-                    sh '''
-                        export PATH=$HOME/.local/bin:$PATH
-                        poetry install --with dev
-                    '''
-                }
+                sh 'poetry install --with dev'
             }
         }
 
         stage('Test') {
             steps {
-                dir('06-advanced-project') {
-                    sh '''
-                        export PATH=$HOME/.local/bin:$PATH
-                        poetry run pytest
-                    '''
-                }
+                sh 'poetry run pytest'
             }
         }
     }
