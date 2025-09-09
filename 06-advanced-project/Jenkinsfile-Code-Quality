@@ -9,25 +9,23 @@ pipeline {
             }
         }
 
-        // Stage 2: Setup - install dependencies using Poetry
         stage('Setup') {
-            steps {
-                dir('06-advanced-project') {
-                    // Explicit full path to Poetry
-                    sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
-                }
-            }
+    steps {
+        dir('06-advanced-project') {
+            // Full path to Poetry
+            sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
         }
+    }
+}
 
-        // Stage 3: Test - run tests using Poetry
-        stage('Test') {
-            steps {
-                dir('06-advanced-project') {
-                    // Run pytest using Poetry
-                    sh '/var/lib/jenkins/.local/bin/poetry run pytest'
-                }
-            }
+stage('Test') {
+    steps {
+        dir('06-advanced-project') {
+            sh '/var/lib/jenkins/.local/bin/poetry run pytest'
         }
+    }
+}
+
     }
 
     post {
