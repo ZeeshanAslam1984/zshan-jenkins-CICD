@@ -1,8 +1,11 @@
 pipeline {
     agent any
 
+    environment {
+        PATH = "/var/lib/jenkins/.local/bin:${env.PATH}"
+    }
+
     stages {
-        // Stage 1: Checkout the repo
         stage('Checkout') {
             steps {
                 checkout scm
@@ -10,30 +13,19 @@ pipeline {
         }
 
         stage('Setup') {
-    steps {
-        dir('06-advanced-project') {
-            // Full path to Poetry
-            sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
+            steps {
+                dir('06-advanced-project') {
+                    sh 'poetry install --with dev'
+                }
+            }
         }
-    }
-}
 
-stage('Test') {
-    steps {
-        dir('06-advanced-project') {
-            sh '/var/lib/jenkins/.local/bin/poetry run pytest'
-        }
-    }
-}
-
-    }
-
-    post {
-        success {
-            echo '✅ Pipeline completed successfully!'
-        }
-        failure {
-            echo '❌ Pipeline failed. Check the logs above.'
+        stage('Test') {
+            steps {
+                dir('06-advanced-project') {
+                    sh 'poetry run pytest'
+                }
+            }
         }
     }
 }
