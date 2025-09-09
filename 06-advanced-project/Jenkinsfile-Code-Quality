@@ -2,22 +2,21 @@ pipeline {
     agent any
 
     environment {
-        // Use PATH+EXTRA to avoid JENKINS-41339 warnings
-        PATH+POETRY = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:${env.PATH}"
+        // Use Poetry venv in PATH
+        PATH = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:${env.PATH}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Ensure correct Git checkout
                 checkout scm
             }
         }
 
         stage('Setup') {
             steps {
-                // Go into the folder containing pyproject.toml
                 dir('06-advanced-project') {
+                    echo "Installing dependencies with Poetry..."
                     sh 'poetry install --with dev'
                 }
             }
@@ -26,9 +25,30 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
+                    echo "Running tests with Poetry..."
                     sh 'poetry run pytest'
                 }
             }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('06-advanced-project') {
+                    echo "Building Docker image..."
+                    sh 'docker build -t zeeshanaslam1984/code-quality-app:latest .'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+            // Optional: notify GitHub of success
+        }
+        failure {
+            echo '❌ Pipeline failed!'
+            // Optional: notify GitHub of failure
         }
     }
 }
