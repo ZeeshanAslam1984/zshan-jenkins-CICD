@@ -1,23 +1,47 @@
 pipeline {
     agent any
+
     environment {
-        PATH+EXTRA = "/var/lib/jenkins/.local/bin"
+        // Ensure Poetry is in PATH for Jenkins
+        PATH = "/var/lib/jenkins/.local/bin:/usr/local/bin:/usr/bin:/bin:${env.PATH}"
     }
+
     stages {
+
+        stage('Prepare Workspace') {
+            steps {
+                script {
+                    // Fix permissions for Jenkins to write pytest cache
+                    sh 'sudo chown -R jenkins:jenkins ${WORKSPACE}/06-advanced-project'
+                }
+            }
+        }
+
         stage('Setup') {
             steps {
-                dir('06-advanced-project') {    // <- change directory here
-                    sh 'poetry install --with dev'
+                dir('06-advanced-project') {
+                    // Install dependencies via Poetry
+                    sh '/usr/bin/env poetry install --with dev'
                 }
             }
         }
 
         stage('Test') {
             steps {
-                dir('06-advanced-project') {    // <- change directory here
-                    sh 'poetry run pytest'
+                dir('06-advanced-project') {
+                    // Run tests
+                    sh '/usr/bin/env poetry run pytest'
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Build & tests completed successfully!"
+        }
+        failure {
+            echo "❌ Build failed. Check console output."
         }
     }
 }
