@@ -2,50 +2,30 @@ pipeline {
     agent any
 
     environment {
-        // Add Poetry to PATH for Jenkins
-        PATH = "/home/zesh/.local/bin:${env.PATH}"
+        PATH = "/var/lib/jenkins/.local/bin:$PATH" // ensure Poetry is on PATH
     }
 
     stages {
-
-        stage('Environment Variables') {
+        stage('Checkout') {
             steps {
-                sh 'printenv'
-                sh 'ls -la'
-            }
-        }
-
-        stage('Pull Request Number') {
-            when {
-                expression { return false } // Skipping this stage for now
-            }
-            steps {
-                echo "Skipping Pull Request Number stage"
+                checkout scm
             }
         }
 
         stage('Setup') {
             steps {
-                echo "Installing dependencies with Poetry..."
-                sh 'poetry install --with dev'
+                dir('06-advanced-project') {   // <- change to your project folder
+                    sh 'poetry install --with dev'
+                }
             }
         }
 
         stage('Test') {
             steps {
-                echo "Running tests..."
-                sh 'poetry run pytest'
+                dir('06-advanced-project') {   // <- run tests in project folder
+                    sh 'poetry run pytest'
+                }
             }
-        }
-
-    }
-
-    post {
-        success {
-            echo "Pipeline finished successfully!"
-        }
-        failure {
-            echo "Pipeline failed."
         }
     }
 }
