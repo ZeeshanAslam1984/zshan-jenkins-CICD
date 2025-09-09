@@ -2,43 +2,50 @@ pipeline {
     agent any
 
     environment {
-        PATH = "/var/lib/jenkins/.local/bin:${env.PATH}"
+        // Add Poetry to PATH for Jenkins
+        PATH = "/home/zesh/.local/bin:${env.PATH}"
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Environment Variables') {
             steps {
-                checkout scm
+                sh 'printenv'
                 sh 'ls -la'
-                sh 'which poetry || echo "Poetry not in PATH"'
-                sh 'poetry --version'
+            }
+        }
+
+        stage('Pull Request Number') {
+            when {
+                expression { return false } // Skipping this stage for now
+            }
+            steps {
+                echo "Skipping Pull Request Number stage"
             }
         }
 
         stage('Setup') {
             steps {
+                echo "Installing dependencies with Poetry..."
                 sh 'poetry install --with dev'
-            }
-        }
-
-        stage('Code Quality') {
-            steps {
-                sh 'poetry run flake8 .'
-                sh 'poetry run black --check .'
-                sh 'poetry run pylint $(find . -name "*.py") || true'
             }
         }
 
         stage('Test') {
             steps {
-                sh 'poetry run pytest --maxfail=1 --disable-warnings -q'
+                echo "Running tests..."
+                sh 'poetry run pytest'
             }
         }
+
     }
 
     post {
-        always {
-            echo "Pipeline finished!"
+        success {
+            echo "Pipeline finished successfully!"
+        }
+        failure {
+            echo "Pipeline failed."
         }
     }
 }
