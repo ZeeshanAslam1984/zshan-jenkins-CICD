@@ -1,21 +1,13 @@
 pipeline {
     agent any
     environment {
-        // Append Poetry's bin directory to PATH
-        PATH+POETRY = "/var/lib/jenkins/.local/share/pypoetry/venv/bin"
+        // Add Poetry's bin directory to PATH safely
+        PATH+EXTRA = "/var/lib/jenkins/.local/bin"
     }
     stages {
-        stage('Checkout') {
-            steps {
-                // Checkout happens automatically via Jenkins SCM, no changes needed
-                echo "Checking out the repository..."
-            }
-        }
-
         stage('Setup') {
             steps {
                 dir('06-advanced-project') {
-                    echo "Installing dependencies using Poetry..."
                     sh 'poetry install --with dev'
                 }
             }
@@ -24,19 +16,9 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    echo "Running tests using Poetry..."
                     sh 'poetry run pytest'
                 }
             }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed. Check logs for errors.'
         }
     }
 }
