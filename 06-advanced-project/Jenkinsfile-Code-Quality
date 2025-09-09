@@ -2,39 +2,36 @@ pipeline {
     agent any
 
     environment {
-        // Poetry binary path (installed for jenkins user)
-        POETRY = "/var/lib/jenkins/.local/bin/poetry"
+        PATH = "/var/lib/jenkins/.local/bin:${env.PATH}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                // Pull the repo
                 checkout scm
                 sh 'ls -la'
+                sh 'which poetry || echo "Poetry not in PATH"'
+                sh 'poetry --version'
             }
         }
 
         stage('Setup') {
             steps {
-                // Install dependencies (including dev)
-                sh "${POETRY} install --with dev"
+                sh 'poetry install --with dev'
             }
         }
 
         stage('Code Quality') {
             steps {
-                // Example code quality tools - adjust if needed
-                sh "${POETRY} run flake8 ."
-                sh "${POETRY} run black --check ."
-                sh "${POETRY} run pylint $(find . -name '*.py') || true"
+                sh 'poetry run flake8 .'
+                sh 'poetry run black --check .'
+                sh 'poetry run pylint $(find . -name "*.py") || true'
             }
         }
 
         stage('Test') {
             steps {
-                // Run tests
-                sh "${POETRY} run pytest --maxfail=1 --disable-warnings -q"
+                sh 'poetry run pytest --maxfail=1 --disable-warnings -q'
             }
         }
     }
@@ -42,12 +39,6 @@ pipeline {
     post {
         always {
             echo "Pipeline finished!"
-        }
-        failure {
-            echo "❌ Build failed"
-        }
-        success {
-            echo "✅ Build passed"
         }
     }
 }
