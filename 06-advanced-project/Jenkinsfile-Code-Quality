@@ -2,8 +2,9 @@ pipeline {
     agent any
 
     environment {
-        // You can add environment variables here if needed
+        // Ensure Poetry binaries are in PATH
         PATH = "${env.PATH}:/var/lib/jenkins/.local/share/pypoetry/venv/bin"
+        POETRY_HOME = "/var/lib/jenkins/.local/share/pypoetry"
     }
 
     stages {
@@ -17,8 +18,33 @@ pipeline {
         stage('Setup') {
             steps {
                 dir('06-advanced-project') {
-                    echo "Installing dependencies with Poetry..."
-                    sh 'poetry install --with dev'
+                    script {
+                        echo "Installing dependencies with Poetry..."
+                        sh '''
+                            if [ ! -f pyproject.toml ]; then
+                                echo "Error: pyproject.toml not found!"
+                                exit 1
+                            fi
+                            poetry install --with dev
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Code Quality') {
+            steps {
+                dir('06-advanced-project') {
+                    script {
+                        echo "Running code quality checks with flake8..."
+                        sh '''
+                            if ! command -v flake8 &> /dev/null; then
+                                echo "flake8 not installed. Installing..."
+                                poetry add --dev flake8
+                            fi
+                            poetry run flake8 .
+                        '''
+                    }
                 }
             }
         }
@@ -26,28 +52,33 @@ pipeline {
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    echo "Running tests with Poetry..."
-                    sh 'poetry run pytest'
+                    script {
+                        echo "Running tests with pytest..."
+                        sh '''
+                            poetry run pytest --maxfail=1 --disable-warnings -q
+                        '''
+                    }
                 }
             }
         }
 
         stage('Other Steps') {
             steps {
-                echo "You can add other stages here like Code Quality, Linting, or Deployment"
+                echo "You can add deployment, packaging, or additional steps here"
             }
         }
     }
 
     post {
         always {
-            echo 'Cleaning up...'
+            echo 'Cleaning workspace...'
+            cleanWs()
         }
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed. Check logs for details.'
+            echo '❌ Pipeline failed. Check logs for details.'
         }
     }
 }
