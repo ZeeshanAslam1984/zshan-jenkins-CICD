@@ -13,19 +13,21 @@ pipeline {
         }
 
         stage('Setup') {
-            steps {
-                dir('06-advanced-project') {   // <- change to your project folder
-                    sh 'poetry install --with dev'
-                }
-            }
+    steps {
+        dir('06-advanced-project') {
+            sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
         }
+    }
+}
 
-        stage('Test') {
-            steps {
-                dir('06-advanced-project') {   // <- run tests in project folder
-                    sh 'poetry run pytest'
-                }
-            }
+And for the Test stage:
+
+stage('Test') {
+    steps {
+        dir('06-advanced-project') {
+            sh '/var/lib/jenkins/.local/bin/poetry run pytest'
         }
+    }
+}
     }
 }
