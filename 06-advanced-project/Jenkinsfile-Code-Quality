@@ -1,25 +1,20 @@
 pipeline {
     agent any
 
-    // Ensure Poetry is available in PATH for all stages
     environment {
-        PATH = "/var/lib/jenkins/.local/bin:${env.PATH}"
+        PATH = "/var/lib/jenkins/.local/bin:$PATH"
     }
 
     stages {
-
         stage('Checkout') {
             steps {
-                echo "Checking out source code..."
                 checkout scm
             }
         }
 
         stage('Setup') {
             steps {
-                echo "Installing dependencies with Poetry..."
                 dir('06-advanced-project') {
-                    // Run Poetry install inside the project directory
                     sh 'poetry install --with dev'
                 }
             }
@@ -27,23 +22,10 @@ pipeline {
 
         stage('Test') {
             steps {
-                echo "Running tests..."
                 dir('06-advanced-project') {
                     sh 'poetry run pytest'
                 }
             }
-        }
-    }
-
-    post {
-        always {
-            echo "Pipeline finished. Check results above."
-        }
-        success {
-            echo "✅ Build and tests succeeded!"
-        }
-        failure {
-            echo "❌ Build or tests failed!"
         }
     }
 }
