@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     environment {
-        // Use Poetry venv in PATH
-        PATH = "/var/lib/jenkins/.local/share/pypoetry/venv/bin:${env.PATH}"
+        // You can add environment variables here if needed
+        PATH = "${env.PATH}:/var/lib/jenkins/.local/share/pypoetry/venv/bin"
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Checkout SCM') {
             steps {
                 checkout scm
             }
@@ -31,24 +32,22 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Other Steps') {
             steps {
-                dir('06-advanced-project') {
-                    echo "Building Docker image..."
-                    sh 'docker build -t zeeshanaslam1984/code-quality-app:latest .'
-                }
+                echo "You can add other stages here like Code Quality, Linting, or Deployment"
             }
         }
     }
 
     post {
+        always {
+            echo 'Cleaning up...'
+        }
         success {
-            echo '✅ Pipeline completed successfully!'
-            // Optional: notify GitHub of success
+            echo 'Pipeline completed successfully!'
         }
         failure {
-            echo '❌ Pipeline failed!'
-            // Optional: notify GitHub of failure
+            echo 'Pipeline failed. Check logs for details.'
         }
     }
 }
