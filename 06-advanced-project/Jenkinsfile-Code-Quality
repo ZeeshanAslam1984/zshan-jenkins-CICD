@@ -2,28 +2,40 @@ pipeline {
     agent any
 
     stages {
+        // Stage 1: Checkout the repo
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
+        // Stage 2: Setup - install dependencies using Poetry
         stage('Setup') {
             steps {
                 dir('06-advanced-project') {
-                    // Use full path explicitly
+                    // Explicit full path to Poetry
                     sh '/var/lib/jenkins/.local/bin/poetry install --with dev'
                 }
             }
         }
 
+        // Stage 3: Test - run tests using Poetry
         stage('Test') {
             steps {
                 dir('06-advanced-project') {
-                    // Use full path explicitly for pytest
+                    // Run pytest using Poetry
                     sh '/var/lib/jenkins/.local/bin/poetry run pytest'
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo '✅ Pipeline completed successfully!'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check the logs above.'
         }
     }
 }
